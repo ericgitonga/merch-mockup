@@ -6,6 +6,18 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.4.0] - 2026-07-23
+### Changed
+- Results page now offers a single "Download design" button instead of
+  three separate TIFF/PNG/mockup links. A new `/download/<token>` route
+  fetches all three files from Blob and zips them in memory
+  (`{slug}.tiff`, `{slug}.png`, `{slug}_mockup.jpg`) rather than linking
+  straight to each blob's `downloadUrl`.
+- `e2e/test_generate.py` updated to assert the single button and unzip the
+  response to check its contents. (closes #10)
+
+tag: `v0.4.0`
+
 ## [0.3.0] - 2026-07-23
 ### Changed
 - Moved the deploy target from Render to Vercel (Render needs a paid plan
