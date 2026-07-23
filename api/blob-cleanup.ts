@@ -20,7 +20,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   res.setHeader('content-type', 'application/json');
 
   const expected = process.env.CRON_SECRET;
-  if (expected && req.headers.authorization !== `Bearer ${expected}`) {
+  if (!expected || req.headers.authorization !== `Bearer ${expected}`) {
     res.statusCode = 401;
     res.end(JSON.stringify({ error: 'Unauthorized' }));
     return;
