@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Insect Design Generator</title>
+<style>
+  :root {
+    --bar-black:  #000000;
+    --page-bg:    #f1f1f1;
+    --card-bg:    #ffffff;
+    --border:     #dddddd;
+    --text:       #333333;
+    --muted:      #767676;
+    --link-blue:  #2f7ab0;
+    --danger:     #b23b3b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--page-bg);
+    color: var(--text);
+  }
+  a { color: var(--link-blue); }
+
+  .topbar {
+    background: var(--bar-black);
+    color: #ffffff;
+    padding: 10px 24px;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .title-band {
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+    text-align: center;
+    padding: 48px 24px 32px;
+  }
+  .title-band h1 {
+    margin: 0 0 8px;
+    font-size: 34px;
+    font-weight: 600;
+  }
+  .title-band p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 32px 20px 64px;
+  }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    padding: 28px;
+    margin: 0 0 24px;
+  }
+
+  .flash {
+    background: #fdf0ef;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 12px 16px;
+    margin: 0 0 20px;
+    font-size: 14px;
+  }
+
+  label {
+    display: block;
+    font-weight: 600;
+    font-size: 13px;
+    margin: 18px 0 6px;
+  }
+  label:first-of-type { margin-top: 0; }
+
+  input[type="text"],
+  input[type="file"],
+  select {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+    font-size: 14px;
+    color: var(--text);
+  }
+  input[type="text"]:focus,
+  select:focus {
+    outline: none;
+    border-color: var(--link-blue);
+  }
+
+  .hint { color: var(--muted); font-weight: 400; font-size: 12px; }
+
+  .radio-row { display: flex; flex-wrap: wrap; gap: 14px; }
+  .radio-row label {
+    display: flex; align-items: center; gap: 6px;
+    font-weight: 400; font-size: 14px; margin: 0;
+  }
+
+  .btn, button[type="submit"] {
+    display: inline-block;
+    background: #000;
+    color: #fff;
+    border: none;
+    padding: 12px 30px;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .btn:hover, button[type="submit"]:hover { background: #333; }
+
+  button[type="submit"] { margin-top: 24px; }
+
+  .results-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 640px) {
+    .results-grid { grid-template-columns: 1fr; }
+  }
+  .results-grid .card { margin: 0; text-align: center; }
+  .results-grid h2 { font-size: 16px; margin: 0 0 16px; }
+  .results-grid img {
+    max-width: 100%;
+    border: 1px solid var(--border);
+  }
+
+  .downloads-card h2 { font-size: 16px; margin: 0 0 16px; }
+  .downloads-card .btn { margin: 0 10px 10px 0; }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 24px;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">Merch Mockup</div>
+
+<div class="title-band">
+  <h1>Insect Design Generator</h1>
+  <p>Upload a photograph, add optional text, choose colours — get print-ready files and a t-shirt mockup.</p>
+</div>
+
+<main>
+
+  {% for message in get_flashed_messages() %}
+    <div class="flash">{{ message }}</div>
+  {% endfor %}
+
+  <div class="card">
+    <form method="post" action="{{ url_for('generate') }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <label for="photo">Photograph</label>
+      <input type="file" id="photo" name="photo" accept=".jpg,.jpeg,.png,.webp" required>
+
+      <label for="top_text">Top text <span class="hint">(optional)</span></label>
+      <input type="text" id="top_text" name="top_text" placeholder="e.g. Fiery hot ant"
+             value="{{ form.top_text or '' }}">
+
+      <label for="bottom_text">Bottom text <span class="hint">(optional — used as filename)</span></label>
+      <input type="text" id="bottom_text" name="bottom_text" placeholder="e.g. Flagrant"
+             value="{{ form.bottom_text or '' }}">
+
+      <label for="filename">Save as <span class="hint">(required when bottom text is empty)</span></label>
+      <input type="text" id="filename" name="filename" placeholder="e.g. my_ant_design"
+             value="{{ form.filename or '' }}">
+
+      <label>Text colour</label>
+      <div class="radio-row">
+        {% for name in text_colours %}
+        <label>
+          <input type="radio" name="text_colour" value="{{ name }}"
+                 {% if (form.text_colour or 'White') == name %}checked{% endif %}>
+          {{ name }}
+        </label>
+        {% endfor %}
+      </div>
+
+      <label for="shirt_colour">T-shirt colour</label>
+      <select id="shirt_colour" name="shirt_colour">
+        {% for name, hex in shirt_colours.items() %}
+        <option value="{{ name }}" {% if form.shirt_colour == name %}selected{% endif %}>
+          {{ name }} — {{ hex }}
+        </option>
+        {% endfor %}
+      </select>
+
+      <button type="submit">Generate</button>
+    </form>
+  </div>
+
+  {% if result %}
+  <div class="results-grid">
+    <div class="card">
+      <h2>Design preview</h2>
+      <img src="{{ url_for('preview_image', token=result.token, kind='design') }}" alt="Design preview">
+    </div>
+    <div class="card">
+      <h2>T-shirt mockup</h2>
+      <img src="{{ url_for('preview_image', token=result.token, kind='mockup') }}" alt="T-shirt mockup">
+    </div>
+  </div>
+
+  <div class="card downloads-card">
+    <h2>Downloads</h2>
+    <a class="btn" href="{{ url_for('download', token=result.token, kind='tiff') }}">TIFF (print-ready)</a>
+    <a class="btn" href="{{ url_for('download', token=result.token, kind='png') }}">PNG (transparent)</a>
+    <a class="btn" href="{{ url_for('download', token=result.token, kind='mockup') }}">Mockup JPG</a>
+  </div>
+  {% endif %}
+
+</main>
+
+<footer>Insect Design Generator &middot; v{{ app_version }}</footer>
+
+</body>
+</html>
