@@ -6,6 +6,42 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.3.0] - 2026-07-23
+### Changed
+- Moved the deploy target from Render to Vercel (Render needs a paid plan
+  for another service on this account) — `render.yaml` removed, `vercel.json`
+  added declaring the Flask app and the new Node upload Function as separate
+  services with routing rewrites, `.python-version` bumped 3.11.9 -> 3.12
+  (Vercel doesn't offer 3.11).
+- `app.py` no longer writes generated files to local disk: `/generate` and
+  `/result/<token>` now read/write Vercel Blob directly via the new
+  `storage.py` (a thin `requests`-based wrapper over Blob's plain REST API).
+  Vercel Functions give no guarantee that two separate requests land on the
+  same instance, so local-disk hand-off across requests was never going to
+  work in production. `/preview/<token>/<kind>` and `/download/<token>/<kind>`
+  are gone — the result page links directly to Blob URLs instead of
+  proxying through Flask.
+- Photo upload no longer goes through Flask's own request body at all: a new
+  Node.js Function (`api/blob-upload.ts`, the one non-Python file in this
+  project) mints a presigned Blob upload URL, and the browser (see
+  `static/upload.js`) PUTs the file directly to Blob storage, bypassing
+  Vercel's 4.5MB Function body cap entirely — matches how `umoja-voices`
+  handles its own large uploads (client-direct-to-storage), adapted from
+  Supabase Storage's signed-URL flow to Vercel Blob's.
+- `e2e/` reworked for the new upload flow and Blob-URL-based assertions;
+  `.github/workflows/e2e.yml` now deploys the PR to a real Vercel Preview
+  and runs the suite against it (`vercel dev` and a hand-run local server
+  can't faithfully stand in for this app's mixed Python + Node Functions and
+  Blob dependency — confirmed directly when a CSP bug silently broke the
+  upload JS in a way only a real deployment surfaced).
+- Content-Security-Policy's `connect-src` widened to allow the presigned
+  Blob PUT (issued on `vercel.com`, not `blob.vercel-storage.com`) and the
+  public Blob read host.
+- See issue #7 for the full architecture discussion (why Vercel, why Blob,
+  why one Node Function, what was tried and rejected).
+
+tag: `v0.3.0`
+
 ## [0.2.0] - 2026-07-23
 ### Added
 - Playwright-based E2E smoke suite in `e2e/` covering the upload/generate

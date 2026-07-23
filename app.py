@@ -7,56 +7,63 @@ transparent PNG, and a t-shirt mockup JPG.
 
 Ported from a Gradio prototype after Gradio proved unreliable to deploy on
 Render — the image-processing pipeline below (crop/compose/mockup) is
-unchanged from that prototype.
+unchanged from that prototype. Originally deployed with local-disk storage
+for Render; moved to Vercel + Vercel Blob (see storage.py and
+api/blob-upload.ts) because Vercel Functions are stateless per-invocation —
+there's no guarantee GET /result/<token> lands on the same instance that
+wrote files during POST /generate — and because Vercel Functions cap request
+bodies at 4.5MB, so the photo upload itself goes straight from the browser
+to Blob (bypassing this app entirely) rather than through a multipart POST
+here. See issue #7 for the full architecture discussion.
 """
 
+import io
 import json
 import os
 import re
 import secrets
-import shutil
-import time
+import tempfile
 import uuid
 import warnings
 from pathlib import Path
 
 from flask import (
     Flask, abort, flash, redirect, render_template,
-    request, send_file, url_for,
+    request, url_for,
 )
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
 from PIL import Image, ImageDraw, ImageFont
 
+import storage
+
 BASE_DIR = Path(__file__).parent
 ASSETS_DIR = BASE_DIR / "Assets"
 TOP_FONT = ASSETS_DIR / "DancingScript-Bold.ttf"
 BOT_FONT = ASSETS_DIR / "Kalam-Bold.ttf"
 
-TEMP_ROOT = Path(os.environ.get("MERCH_MOCKUP_TMP", "/tmp/merch-mockup"))
-TEMP_ROOT.mkdir(parents=True, exist_ok=True)
-TOKEN_MAX_AGE = 60 * 60  # 1 hour — bounds disk growth without a cron job
 TOKEN_RE = re.compile(r"^[0-9a-f]{32}$")
 
 app = Flask(__name__)
 APP_VERSION = (BASE_DIR / "VERSION").read_text().strip()
 
 # ── Secret key ─────────────────────────────────────────────────────────────
-# On Render, SECRET_KEY is set as an environment variable via the dashboard.
-# Locally, if absent, auto-generate one so development is frictionless — the
-# trade-off is CSRF tokens invalidate on every restart, which is fine in dev.
+# On Vercel, SECRET_KEY is set as a project environment variable. Locally, if
+# absent, auto-generate one so development is frictionless — the trade-off is
+# CSRF tokens invalidate on every restart, which is fine in dev.
 _secret = os.environ.get("SECRET_KEY", "")
 if not _secret:
     _secret = secrets.token_hex(32)
     warnings.warn(
         "SECRET_KEY not set — using a randomly generated key. "
         "CSRF tokens will be invalidated on restart. "
-        "Set SECRET_KEY in your environment (or Render dashboard) for production.",
+        "Set SECRET_KEY in your environment (or Vercel project settings) "
+        "for production.",
         stacklevel=1,
     )
 app.config["SECRET_KEY"] = _secret
-app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15 MB
+app.config["MAX_CONTENT_LENGTH"] = 64 * 1024  # form fields + a blob URL, not the photo itself
 
 csrf = CSRFProtect(app)
 
@@ -65,8 +72,6 @@ limiter = Limiter(
     app=app,
     default_limits=["200 per day", "50 per hour"],
 )
-
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 W, H = 2400, 2900   # design canvas
 
@@ -234,45 +239,10 @@ def _make_mockup(design_rgba, shirt_hex):
 
 # ── Upload / token helpers ────────────────────────────────────────────────────
 
-def _safe_suffix(filename):
-    """Return the lowercased extension of filename if it's on the allow-list.
-
-    Raises ValueError otherwise — never trust the client's Content-Type.
-    """
-    suffix = Path(filename).suffix.lower()
-    if suffix not in ALLOWED_EXTENSIONS:
-        raise ValueError(
-            f"Unsupported file type '{suffix or '(none)'}'. "
-            f"Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
-        )
-    return suffix
-
-
 def _slugify(text):
     slug = re.sub(r"\s+", "_", text.strip().lower())
     slug = re.sub(r"[^a-z0-9_-]", "", slug)
     return slug
-
-
-def _sweep_temp_root():
-    """Best-effort removal of result directories older than TOKEN_MAX_AGE."""
-    now = time.time()
-    for entry in TEMP_ROOT.iterdir():
-        try:
-            if entry.is_dir() and (now - entry.stat().st_mtime) > TOKEN_MAX_AGE:
-                shutil.rmtree(entry, ignore_errors=True)
-        except OSError:
-            continue
-
-
-def _token_dir(token):
-    """Validate token shape and existence, or abort(404). Never trust input."""
-    if not TOKEN_RE.match(token):
-        abort(404)
-    out_dir = TEMP_ROOT / token
-    if not out_dir.is_dir():
-        abort(404)
-    return out_dir
 
 
 # ── Security headers ──────────────────────────────────────────────────────────
@@ -287,7 +257,13 @@ def _security_headers(resp):
         "default-src 'self'; "
         "style-src 'self' 'unsafe-inline'; "
         "script-src 'self'; "
-        "img-src 'self';"
+        "img-src 'self' https://*.public.blob.vercel-storage.com; "
+        # Presigned Blob PUT URLs are issued on vercel.com (confirmed against
+        # this project's own deployment — not blob.vercel-storage.com, which
+        # is only the plain read-write-token REST host storage.py talks to).
+        "connect-src 'self' https://vercel.com "
+        "https://blob.vercel-storage.com "
+        "https://*.public.blob.vercel-storage.com;"
     )
     return resp
 
@@ -308,11 +284,14 @@ def index():
     )
 
 
+PHOTO_PATHNAME_RE = re.compile(r"^uploads/[0-9a-f-]+\.(jpg|png|webp)$")
+
+
 @app.route("/generate", methods=["POST"])
 @limiter.limit("10 per minute")
 def generate():
-    photo = request.files.get("photo")
-    top_text    = (request.form.get("top_text")    or "").strip()
+    photo_pathname = (request.form.get("photo_pathname") or "").strip()
+    top_text    = (request.form.get("top_text")     or "").strip()
     bottom_text = (request.form.get("bottom_text")  or "").strip()
     filename    = (request.form.get("filename")     or "").strip()
     text_colour  = request.form.get("text_colour", "White")
@@ -332,13 +311,15 @@ def generate():
             form=sticky_form,
         ), 400
 
-    if not photo or not photo.filename:
+    if not photo_pathname:
         return _bounce("Please upload a photograph.")
 
-    try:
-        upload_suffix = _safe_suffix(photo.filename)
-    except ValueError as exc:
-        return _bounce(str(exc))
+    if not PHOTO_PATHNAME_RE.match(photo_pathname):
+        return _bounce("That upload looks invalid — please try uploading again.")
+
+    photo_bytes = storage.get_blob_bytes(storage.blob_url(photo_pathname))
+    if photo_bytes is None:
+        return _bounce("That upload has expired — please upload the photo again.")
 
     if text_colour not in TEXT_COLOURS:
         text_colour = "White"
@@ -352,39 +333,54 @@ def generate():
             "needed to name the output files."
         )
 
-    _sweep_temp_root()
-    token = uuid.uuid4().hex
-    out_dir = TEMP_ROOT / token
-    out_dir.mkdir(parents=True)
-
-    upload_path = out_dir / f"upload{upload_suffix}"
-    photo.save(upload_path)
-
     tc, sc    = TEXT_COLOURS[text_colour]["rgb"], TEXT_COLOURS[text_colour]["shadow"]
     shirt_hex = SHIRT_COLOURS[shirt_colour]
 
     tf, bf     = _load_fonts()
     px, py, pw = _get_layout(top_text, bottom_text)
-    photo_img  = _crop_photo(upload_path, pw)
 
-    _compose("RGB", (0, 0, 0), photo_img, px, py, pw,
-             top_text, bottom_text, tf, bf, tc, sc
-             ).save(out_dir / f"{slug}.tiff", format="TIFF", compression="lzw")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        photo_path = Path(tmp_dir) / "upload"
+        photo_path.write_bytes(photo_bytes)
+        photo_img = _crop_photo(photo_path, pw)
 
-    png = _compose("RGBA", (0, 0, 0, 0), photo_img, px, py, pw,
-                   top_text, bottom_text, tf, bf,
-                   tc + (255,), sc + (180,))
-    png.save(out_dir / f"{slug}.png", format="PNG")
+        tiff_buf = io.BytesIO()
+        _compose("RGB", (0, 0, 0), photo_img, px, py, pw,
+                 top_text, bottom_text, tf, bf, tc, sc
+                 ).save(tiff_buf, format="TIFF", compression="lzw")
 
-    mockup = _make_mockup(png, shirt_hex)
-    mockup.save(out_dir / "mockup.jpg", format="JPEG", quality=93)
+        png = _compose("RGBA", (0, 0, 0, 0), photo_img, px, py, pw,
+                       top_text, bottom_text, tf, bf,
+                       tc + (255,), sc + (180,))
+        png_buf = io.BytesIO()
+        png.save(png_buf, format="PNG")
 
-    preview = Image.new("RGB", (W, H), (80, 80, 80))
-    preview.paste(png, mask=png.split()[3])
-    preview.save(out_dir / "preview.jpg", format="JPEG", quality=90)
+        mockup = _make_mockup(png, shirt_hex)
+        mockup_buf = io.BytesIO()
+        mockup.save(mockup_buf, format="JPEG", quality=93)
 
-    upload_path.unlink(missing_ok=True)
-    (out_dir / "meta.json").write_text(json.dumps({"slug": slug}))
+        preview = Image.new("RGB", (W, H), (80, 80, 80))
+        preview.paste(png, mask=png.split()[3])
+        preview_buf = io.BytesIO()
+        preview.save(preview_buf, format="JPEG", quality=90)
+
+    token  = uuid.uuid4().hex
+    prefix = f"results/{token}"
+
+    tiff_blob    = storage.put_blob(f"{prefix}/{slug}.tiff", tiff_buf.getvalue(), "image/tiff")
+    png_blob     = storage.put_blob(f"{prefix}/{slug}.png", png_buf.getvalue(), "image/png")
+    mockup_blob  = storage.put_blob(f"{prefix}/{slug}_mockup.jpg", mockup_buf.getvalue(), "image/jpeg")
+    preview_blob = storage.put_blob(f"{prefix}/preview.jpg", preview_buf.getvalue(), "image/jpeg")
+
+    meta = {
+        "slug": slug,
+        "preview_url": preview_blob["url"],
+        "mockup_preview_url": mockup_blob["url"],
+        "tiff_download_url": tiff_blob["downloadUrl"],
+        "png_download_url": png_blob["downloadUrl"],
+        "mockup_download_url": mockup_blob["downloadUrl"],
+    }
+    storage.put_blob(f"{prefix}/meta.json", json.dumps(meta).encode(), "application/json")
 
     return redirect(url_for("result", token=token))
 
@@ -393,51 +389,19 @@ def generate():
 def result(token):
     if not TOKEN_RE.match(token):
         abort(404)
-    out_dir = TEMP_ROOT / token
-    meta_path = out_dir / "meta.json"
-    if not meta_path.is_file():
+
+    meta_bytes = storage.get_blob_bytes(storage.blob_url(f"results/{token}/meta.json"))
+    if meta_bytes is None:
         flash("That result has expired — please generate again.")
         return redirect(url_for("index"))
-    slug = json.loads(meta_path.read_text())["slug"]
+
+    meta = json.loads(meta_bytes)
     return render_template(
         "index.html",
-        result={"token": token, "slug": slug},
+        result=meta,
         text_colours=TEXT_COLOURS, shirt_colours=SHIRT_COLOURS,
         form={},
     )
-
-
-@app.route("/preview/<token>/<kind>")
-def preview_image(token, kind):
-    if kind not in ("design", "mockup"):
-        abort(404)
-    out_dir = _token_dir(token)
-    path = out_dir / ("preview.jpg" if kind == "design" else "mockup.jpg")
-    if not path.is_file():
-        abort(404)
-    return send_file(path, mimetype="image/jpeg")
-
-
-@app.route("/download/<token>/<kind>")
-def download(token, kind):
-    out_dir = _token_dir(token)
-    meta_path = out_dir / "meta.json"
-    if not meta_path.is_file():
-        abort(404)
-    slug = json.loads(meta_path.read_text())["slug"]
-
-    files = {
-        "tiff":   (out_dir / f"{slug}.tiff", f"{slug}.tiff",        "image/tiff"),
-        "png":    (out_dir / f"{slug}.png",  f"{slug}.png",         "image/png"),
-        "mockup": (out_dir / "mockup.jpg",   f"{slug}_mockup.jpg",  "image/jpeg"),
-    }
-    if kind not in files:
-        abort(404)
-    path, download_name, mimetype = files[kind]
-    if not path.is_file():
-        abort(404)
-    return send_file(path, as_attachment=True,
-                     download_name=download_name, mimetype=mimetype)
 
 
 @app.route("/_health")

@@ -1,6 +1,6 @@
 """Public, unauthenticated pages that don't touch the generate pipeline."""
 
-from _common import BASE_URL, browser_page
+from _common import BASE_URL, browser_page, bypass_headers
 
 
 def test_index_loads():
@@ -13,7 +13,7 @@ def test_index_loads():
 
 def test_health_endpoint():
     with browser_page() as page:
-        resp = page.request.get(f"{BASE_URL}/_health")
+        resp = page.request.get(f"{BASE_URL}/_health", headers=bypass_headers())
         assert resp.status == 200
         assert resp.json() == {"status": "ok"}
 

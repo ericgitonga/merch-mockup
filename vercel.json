@@ -1,0 +1,29 @@
+{
+  "services": {
+    "merch-mockup": {
+      "root": ".",
+      "entrypoint": "app.py",
+      "buildCommand": "pip install -r requirements.txt"
+    },
+    "blob-upload": {
+      "root": ".",
+      "entrypoint": "api/blob-upload.ts"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/blob-upload",
+      "destination": {
+        "type": "service",
+        "service": "blob-upload"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "type": "service",
+        "service": "merch-mockup"
+      }
+    }
+  ]
+}
