@@ -6,6 +6,18 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.2.0] - 2026-07-23
+### Added
+- Playwright-based E2E smoke suite in `e2e/` covering the upload/generate
+  golden path, validation error paths (missing name, disallowed file
+  extension), and token-based route 404s — mirroring the pattern used in
+  `umoja-voices`, simplified since this app has no auth/database.
+- `.github/workflows/e2e.yml` gates every PR to `main` on the suite,
+  running it against a real gunicorn server (the same entrypoint used in
+  `render.yaml`). (closes #5)
+
+tag: `v0.2.0`
+
 ## [0.1.1] - 2026-07-23
 ### Changed
 - Cards, buttons, form fields, and preview images now have a slight
