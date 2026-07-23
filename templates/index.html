@@ -142,7 +142,6 @@
     border-radius: var(--radius);
   }
 
-  .downloads-card h2 { font-size: 16px; margin: 0 0 16px; }
   .downloads-card .btn { margin: 0 10px 10px 0; }
 
   footer {
@@ -226,10 +225,7 @@
   </div>
 
   <div class="card downloads-card">
-    <h2>Downloads</h2>
-    <a class="btn" href="{{ result.tiff_download_url }}">TIFF (print-ready)</a>
-    <a class="btn" href="{{ result.png_download_url }}">PNG (transparent)</a>
-    <a class="btn" href="{{ result.mockup_download_url }}">Mockup JPG</a>
+    <a class="btn" href="{{ url_for('download', token=token) }}">Download design</a>
   </div>
   {% endif %}
 
