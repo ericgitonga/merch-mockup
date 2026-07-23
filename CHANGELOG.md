@@ -6,6 +6,18 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.1.1] - 2026-07-23
+### Changed
+- Cards, buttons, form fields, and preview images now have a slight
+  `border-radius` (6px) instead of hard 0px corners, softening the theme a
+  little. (closes #2)
+- `.gitignore` now excludes AI-assistant instruction files (`CLAUDE.md`,
+  `AGENTS.md`, `SKILL.md`, `.claude/`, `.agents/`) — living local docs, not
+  tracked in the repo itself, matching the convention already used in
+  `umoja-voices`.
+
+tag: `v0.1.1`
+
 ## [0.1.0] - 2026-07-23
 ### Added
 - Ported the photo/text/colour -> TIFF/PNG/mockup-JPG design generator from a

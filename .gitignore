@@ -1,6 +1,14 @@
 # Design notes — not tracked
 design.md
 
+# AI-assistant instruction files — living local docs updated as needed, but
+# not tracked in the repo itself
+CLAUDE.md
+AGENTS.md
+SKILL.md
+.claude/
+.agents/
+
 # Runtime artefacts
 __pycache__/
 *.pyc
