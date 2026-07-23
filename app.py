@@ -35,7 +35,7 @@ from flask import (
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 
 import storage
 
@@ -340,30 +340,33 @@ def generate():
     tf, bf     = _load_fonts()
     px, py, pw = _get_layout(top_text, bottom_text)
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        photo_path = Path(tmp_dir) / "upload"
-        photo_path.write_bytes(photo_bytes)
-        photo_img = _crop_photo(photo_path, pw)
+    try:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            photo_path = Path(tmp_dir) / "upload"
+            photo_path.write_bytes(photo_bytes)
+            photo_img = _crop_photo(photo_path, pw)
 
-        tiff_buf = io.BytesIO()
-        _compose("RGB", (0, 0, 0), photo_img, px, py, pw,
-                 top_text, bottom_text, tf, bf, tc, sc
-                 ).save(tiff_buf, format="TIFF", compression="lzw")
+            tiff_buf = io.BytesIO()
+            _compose("RGB", (0, 0, 0), photo_img, px, py, pw,
+                     top_text, bottom_text, tf, bf, tc, sc
+                     ).save(tiff_buf, format="TIFF", compression="lzw")
 
-        png = _compose("RGBA", (0, 0, 0, 0), photo_img, px, py, pw,
-                       top_text, bottom_text, tf, bf,
-                       tc + (255,), sc + (180,))
-        png_buf = io.BytesIO()
-        png.save(png_buf, format="PNG")
+            png = _compose("RGBA", (0, 0, 0, 0), photo_img, px, py, pw,
+                           top_text, bottom_text, tf, bf,
+                           tc + (255,), sc + (180,))
+            png_buf = io.BytesIO()
+            png.save(png_buf, format="PNG")
 
-        mockup = _make_mockup(png, shirt_hex)
-        mockup_buf = io.BytesIO()
-        mockup.save(mockup_buf, format="JPEG", quality=93)
+            mockup = _make_mockup(png, shirt_hex)
+            mockup_buf = io.BytesIO()
+            mockup.save(mockup_buf, format="JPEG", quality=93)
 
-        preview = Image.new("RGB", (W, H), (80, 80, 80))
-        preview.paste(png, mask=png.split()[3])
-        preview_buf = io.BytesIO()
-        preview.save(preview_buf, format="JPEG", quality=90)
+            preview = Image.new("RGB", (W, H), (80, 80, 80))
+            preview.paste(png, mask=png.split()[3])
+            preview_buf = io.BytesIO()
+            preview.save(preview_buf, format="JPEG", quality=90)
+    except (UnidentifiedImageError, Image.DecompressionBombError, OSError):
+        return _bounce("That photograph couldn't be processed — please try a different file.")
 
     token  = uuid.uuid4().hex
     prefix = f"results/{token}"
