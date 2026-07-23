@@ -1,0 +1,10 @@
+# Design notes — not tracked
+design.md
+
+# Runtime artefacts
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
