@@ -1,0 +1,51 @@
+name: E2E
+
+# Gates a PR on the golden-path E2E suite (e2e/) running against a gunicorn
+# server — the same entrypoint used in render.yaml, never a hand-run dev
+# server. No database/auth here, unlike umoja-voices' e2e workflow, so
+# there's nothing to seed or migrate first.
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r requirements.txt
+
+      - name: Start server
+        env:
+          SECRET_KEY: e2e-test-key
+        # Output redirected to a file rather than left to inherit the step's
+        # own stdout: GitHub Actions stops capturing a backgrounded (`&`)
+        # process's output once the step that launched it exits. "Print
+        # server log" below cats this file so it's visible regardless of
+        # outcome.
+        run: |
+          gunicorn app:app --bind 0.0.0.0:5000 > /tmp/server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:5000/_health > /dev/null && exit 0
+            sleep 1
+          done
+          echo "Server did not become ready in time" >&2
+          exit 1
+
+      - name: Install Playwright (Python)
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Run E2E suite
+        run: python e2e/run.py
+
+      - name: Print server log
+        if: always()
+        run: cat /tmp/server.log
