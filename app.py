@@ -25,10 +25,11 @@ import secrets
 import tempfile
 import uuid
 import warnings
+import zipfile
 from pathlib import Path
 
 from flask import (
-    Flask, abort, flash, redirect, render_template,
+    Flask, Response, abort, flash, redirect, render_template,
     request, url_for,
 )
 from flask_limiter import Limiter
@@ -398,9 +399,42 @@ def result(token):
     meta = json.loads(meta_bytes)
     return render_template(
         "index.html",
-        result=meta,
+        result=meta, token=token,
         text_colours=TEXT_COLOURS, shirt_colours=SHIRT_COLOURS,
         form={},
+    )
+
+
+@app.route("/download/<token>")
+def download(token):
+    if not TOKEN_RE.match(token):
+        abort(404)
+
+    meta_bytes = storage.get_blob_bytes(storage.blob_url(f"results/{token}/meta.json"))
+    if meta_bytes is None:
+        flash("That result has expired — please generate again.")
+        return redirect(url_for("index"))
+
+    meta = json.loads(meta_bytes)
+    slug = meta["slug"]
+    files = [
+        (f"{slug}.tiff",        meta["tiff_download_url"]),
+        (f"{slug}.png",         meta["png_download_url"]),
+        (f"{slug}_mockup.jpg",  meta["mockup_download_url"]),
+    ]
+
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for arcname, url in files:
+            data = storage.get_blob_bytes(url)
+            if data is None:
+                abort(404)
+            zf.writestr(arcname, data)
+
+    return Response(
+        zip_buf.getvalue(),
+        mimetype="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{slug}_design.zip"'},
     )
 
 

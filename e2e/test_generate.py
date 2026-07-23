@@ -1,10 +1,13 @@
-"""Golden path: upload a photo, generate, previews render, downloads work.
+"""Golden path: upload a photo, generate, previews render, download works.
 
-Downloads/previews are read directly off the rendered page (real Blob URLs)
-rather than constructed by the test — the app hands back whatever Blob
-actually returned, so there's nothing to guess about the store's subdomain
-or pathname scheme.
+Downloads/previews are read directly off the rendered page (real Blob URLs
+and the app's own /download/<token> route) rather than constructed by the
+test — the app hands back whatever it actually generated, so there's
+nothing to guess about the store's subdomain or pathname scheme.
 """
+
+import io
+import zipfile
 
 from _common import bypass_headers, browser_page, result_token, submit_generate_form
 
@@ -33,24 +36,25 @@ def test_generate_with_both_texts_and_downloads():
         download_links = page.locator(".downloads-card a").evaluate_all(
             "as => as.map(a => ({href: a.href, text: a.textContent}))"
         )
-        assert len(download_links) == 3
+        assert len(download_links) == 1
+        assert download_links[0]["text"].strip() == "Download design"
 
-        expected = {
-            "TIFF (print-ready)": ("image/tiff", "flagrant.tiff"),
-            "PNG (transparent)":  ("image/png", "flagrant.png"),
-            "Mockup JPG":         ("image/jpeg", "flagrant_mockup.jpg"),
-        }
-        for link in download_links:
-            label = link["text"].strip()
-            mimetype, download_name = expected[label]
-            # The TIFF in particular can run ~20MB (LZW barely compresses a
-            # busy photographic 2400x2900 canvas — confirmed against a real
-            # deployment) — give it real time on a slow connection.
-            resp = page.request.get(link["href"], headers=bypass_headers(), timeout=120_000)
-            assert resp.status == 200
-            assert resp.headers["content-type"] == mimetype
-            assert download_name in resp.headers["content-disposition"]
-            assert "attachment" in resp.headers["content-disposition"]
+        # The TIFF inside can run ~20MB (LZW barely compresses a busy
+        # photographic 2400x2900 canvas — confirmed against a real
+        # deployment) — give the zip real time on a slow connection.
+        resp = page.request.get(
+            download_links[0]["href"], headers=bypass_headers(), timeout=120_000
+        )
+        assert resp.status == 200
+        assert resp.headers["content-type"] == "application/zip"
+        assert "flagrant_design.zip" in resp.headers["content-disposition"]
+        assert "attachment" in resp.headers["content-disposition"]
+
+        zf = zipfile.ZipFile(io.BytesIO(resp.body()))
+        names = set(zf.namelist())
+        assert names == {"flagrant.tiff", "flagrant.png", "flagrant_mockup.jpg"}
+        for name in names:
+            assert zf.getinfo(name).file_size > 0
 
 
 def test_generate_with_filename_only_no_bottom_text():
@@ -60,10 +64,15 @@ def test_generate_with_filename_only_no_bottom_text():
         token = result_token(page)
         assert token, f"expected a redirect to /result/<token>, got {page.url}"
 
-        png_link = page.locator(".downloads-card a", has_text="PNG").get_attribute("href")
-        resp = page.request.get(png_link, headers=bypass_headers())
+        download_link = page.locator(".downloads-card a").get_attribute("href")
+        resp = page.request.get(download_link, headers=bypass_headers(), timeout=120_000)
         assert resp.status == 200
-        assert "my_ant_design.png" in resp.headers["content-disposition"]
+        assert "my_ant_design_design.zip" in resp.headers["content-disposition"]
+
+        zf = zipfile.ZipFile(io.BytesIO(resp.body()))
+        assert set(zf.namelist()) == {
+            "my_ant_design.tiff", "my_ant_design.png", "my_ant_design_mockup.jpg",
+        }
 
 
 TESTS = [
