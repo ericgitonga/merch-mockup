@@ -1,6 +1,10 @@
 # Design notes — not tracked
 design.md
 
+# Local-only working docs (design writeups, security reports, etc.) — not
+# tracked in the repo itself
+extras/
+
 # AI-assistant instruction files — living local docs updated as needed, but
 # not tracked in the repo itself
 CLAUDE.md
