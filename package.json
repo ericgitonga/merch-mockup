@@ -1,0 +1,8 @@
+{
+  "name": "merch-mockup-blob-upload",
+  "private": true,
+  "description": "The one Node.js dependency in this otherwise pure-Python project — see api/blob-upload.ts.",
+  "dependencies": {
+    "@vercel/blob": "^2.6.1"
+  }
+}

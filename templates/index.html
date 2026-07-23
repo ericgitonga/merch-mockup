@@ -169,11 +169,13 @@
   {% endfor %}
 
   <div class="card">
-    <form method="post" action="{{ url_for('generate') }}" enctype="multipart/form-data">
+    <form method="post" action="{{ url_for('generate') }}" id="generate-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="photo_pathname" id="photo_pathname">
 
       <label for="photo">Photograph</label>
-      <input type="file" id="photo" name="photo" accept=".jpg,.jpeg,.png,.webp" required>
+      <input type="file" id="photo" accept="image/jpeg,image/png,image/webp" required>
+      <p class="hint" id="upload-status"></p>
 
       <label for="top_text">Top text <span class="hint">(optional)</span></label>
       <input type="text" id="top_text" name="top_text" placeholder="e.g. Fiery hot ant"
@@ -207,7 +209,7 @@
         {% endfor %}
       </select>
 
-      <button type="submit">Generate</button>
+      <button type="submit" id="submit-btn">Generate</button>
     </form>
   </div>
 
@@ -215,25 +217,27 @@
   <div class="results-grid">
     <div class="card">
       <h2>Design preview</h2>
-      <img src="{{ url_for('preview_image', token=result.token, kind='design') }}" alt="Design preview">
+      <img src="{{ result.preview_url }}" alt="Design preview">
     </div>
     <div class="card">
       <h2>T-shirt mockup</h2>
-      <img src="{{ url_for('preview_image', token=result.token, kind='mockup') }}" alt="T-shirt mockup">
+      <img src="{{ result.mockup_preview_url }}" alt="T-shirt mockup">
     </div>
   </div>
 
   <div class="card downloads-card">
     <h2>Downloads</h2>
-    <a class="btn" href="{{ url_for('download', token=result.token, kind='tiff') }}">TIFF (print-ready)</a>
-    <a class="btn" href="{{ url_for('download', token=result.token, kind='png') }}">PNG (transparent)</a>
-    <a class="btn" href="{{ url_for('download', token=result.token, kind='mockup') }}">Mockup JPG</a>
+    <a class="btn" href="{{ result.tiff_download_url }}">TIFF (print-ready)</a>
+    <a class="btn" href="{{ result.png_download_url }}">PNG (transparent)</a>
+    <a class="btn" href="{{ result.mockup_download_url }}">Mockup JPG</a>
   </div>
   {% endif %}
 
 </main>
 
 <footer>Insect Design Generator &middot; v{{ app_version }}</footer>
+
+<script src="{{ url_for('static', filename='upload.js') }}"></script>
 
 </body>
 </html>
