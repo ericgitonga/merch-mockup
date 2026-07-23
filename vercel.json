@@ -8,6 +8,10 @@
     "blob-upload": {
       "root": ".",
       "entrypoint": "api/blob-upload.ts"
+    },
+    "blob-cleanup": {
+      "root": ".",
+      "entrypoint": "api/blob-cleanup.ts"
     }
   },
   "rewrites": [
@@ -19,11 +23,24 @@
       }
     },
     {
+      "source": "/api/blob-cleanup",
+      "destination": {
+        "type": "service",
+        "service": "blob-cleanup"
+      }
+    },
+    {
       "source": "/(.*)",
       "destination": {
         "type": "service",
         "service": "merch-mockup"
       }
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/blob-cleanup",
+      "schedule": "0 3 * * *"
     }
   ]
 }

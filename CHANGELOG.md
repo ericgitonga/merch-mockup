@@ -6,6 +6,28 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.4.1] - 2026-07-23
+### Fixed
+- `/generate` no longer raises an unhandled exception (bare 500) on a
+  non-image upload or one that trips Pillow's decompression-bomb guard —
+  the whole decode/compose block is now caught and routed through the
+  existing `_bounce()` error path.
+### Added
+- `api/blob-cleanup.ts`, a scheduled (daily, via Vercel Cron) Node Function
+  that deletes anything under `uploads/` or `results/` older than 24h.
+  Nothing previously deleted generated files or abandoned uploads, so Blob
+  storage grew without bound. Guarded by `CRON_SECRET`.
+- `package-lock.json` committed for the Node side (`@vercel/blob`) —
+  previously only a floating `^2.6.1` range with no lockfile, so builds
+  weren't reproducible.
+### Changed
+- Added Vercel Firewall rate-limit rule covering both `POST /generate` and
+  `POST /api/blob-upload` (30 req/60s per IP) — `flask-limiter`'s in-memory
+  counters don't reliably survive Vercel's stateless per-invocation Functions,
+  and `api/blob-upload.ts` (a separate Node Function) had no throttling of
+  any kind. Staged in log-only mode pending traffic review before enforcing.
+- (closes #14)
+
 ## [0.4.0] - 2026-07-23
 ### Changed
 - Results page now offers a single "Download design" button instead of
