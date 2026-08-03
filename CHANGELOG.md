@@ -6,6 +6,13 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.5.0] - 2026-08-03
+### Added
+- Added Vercel Web Analytics + Speed Insights script tags to `templates/index.html`,
+  feeding the cross-project `vercel-metrics` data pipeline. (closes #19)
+
+tag: `v0.5.0`
+
 ## [0.4.1] - 2026-07-23
 ### Fixed
 - `/generate` no longer raises an unhandled exception (bare 500) on a
