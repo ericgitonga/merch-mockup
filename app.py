@@ -89,7 +89,7 @@ SHIRT_COLOURS = {
     "Black":              "#000000",
     "White":              "#FFFFFF",
     "Deep Navy":          "#0F0F2D",
-    "Slate Gray":         "#707070",
+    "Slate Grey":         "#707070",
     "Coral / Red-Orange": "#FF452B",
     "Mustard Yellow":     "#E5A93B",
     "Deep Plum":          "#7D1B4E",

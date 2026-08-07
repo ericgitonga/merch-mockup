@@ -6,6 +6,15 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.5.1] - 2026-08-07
+### Fixed
+- Standardised remaining American spellings to British: "centered" ->
+  "centred" in the CHANGELOG's v0.1.0 entry, and "Slate Gray" -> "Slate Grey"
+  in the `SHIRT_COLOURS` dropdown label (`app.py`) and the matching colour
+  listing in `design.md`. (closes #22)
+
+tag: `v0.5.1`
+
 ## [0.5.0] - 2026-08-03
 ### Added
 - Added Vercel Web Analytics + Speed Insights script tags to `templates/index.html`,
@@ -114,7 +123,7 @@ tag: `v0.1.1`
   `extras/Career Transition`. Gradio had proven unreliable to deploy on
   Render, which motivated the port.
 - Restyled the app to match a WooCommerce-style storefront reference: black
-  top bar, centered white title band, white content cards, black buttons,
+  top bar, centred white title band, white content cards, black buttons,
   blue link accents.
 - Bundled the fonts the pipeline depends on under `Assets/` instead of an
   absolute local path. (closes #1)
