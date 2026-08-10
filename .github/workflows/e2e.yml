@@ -26,6 +26,26 @@ env:
   VERCEL_PROJECT_ID: prj_xGcrnQTO0TF36GWB3JGKE5csi9Fe
 
 jobs:
+  unit-tests:
+    # Fast pure-logic tests (tests/) — no Vercel deploy needed. Required
+    # alongside e2e per ONBOARDING.md: "a green E2E run with a red or absent
+    # unit-test run is not a passing PR." See issue #24.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run unit tests
+        run: python -m pytest tests/ -v
+
   e2e:
     runs-on: ubuntu-latest
     steps:

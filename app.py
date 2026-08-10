@@ -246,6 +246,25 @@ def _slugify(text):
     return slug
 
 
+def _resolve_colours(text_colour, shirt_colour):
+    """Fall back to a default whenever a submitted colour name isn't a known
+    key — e.g. a stale form value from before a colour was renamed/removed."""
+    if text_colour not in TEXT_COLOURS:
+        text_colour = "White"
+    if shirt_colour not in SHIRT_COLOURS:
+        shirt_colour = next(iter(SHIRT_COLOURS))
+    return text_colour, shirt_colour
+
+
+def _build_zip(files):
+    """files: an iterable of (arcname, data) pairs. Returns zip file bytes."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for arcname, data in files:
+            zf.writestr(arcname, data)
+    return buf.getvalue()
+
+
 # ── Security headers ──────────────────────────────────────────────────────────
 
 @app.after_request
@@ -322,10 +341,7 @@ def generate():
     if photo_bytes is None:
         return _bounce("That upload has expired — please upload the photo again.")
 
-    if text_colour not in TEXT_COLOURS:
-        text_colour = "White"
-    if shirt_colour not in SHIRT_COLOURS:
-        shirt_colour = next(iter(SHIRT_COLOURS))
+    text_colour, shirt_colour = _resolve_colours(text_colour, shirt_colour)
 
     slug = _slugify(filename) or _slugify(bottom_text)
     if not slug:
@@ -438,16 +454,15 @@ def download(token):
         (f"{slug}_mockup.jpg",  meta["mockup_download_url"]),
     ]
 
-    zip_buf = io.BytesIO()
-    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for arcname, url in files:
-            data = storage.get_blob_bytes(url)
-            if data is None:
-                abort(404)
-            zf.writestr(arcname, data)
+    fetched = []
+    for arcname, url in files:
+        data = storage.get_blob_bytes(url)
+        if data is None:
+            abort(404)
+        fetched.append((arcname, data))
 
     return Response(
-        zip_buf.getvalue(),
+        _build_zip(fetched),
         mimetype="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{slug}_design.zip"'},
     )

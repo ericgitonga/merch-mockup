@@ -45,6 +45,15 @@ VERCEL_BYPASS_SECRET=<automation bypass secret, if the deployment needs it> \
 conda run -n ds python e2e/run.py
 ```
 
+Pure business logic (image-compositing, slug generation, colour-table
+lookups, zip packaging) also gets fast `pytest` unit tests in `tests/`,
+gated in the same workflow as a separate `unit-tests` job — no Blob/network
+round-trip needed:
+
+```bash
+conda run -n ds python -m pytest tests/
+```
+
 ## Deployment
 
 Deployed to [Vercel](https://vercel.com) (project `egm2/merch-mockup`).
