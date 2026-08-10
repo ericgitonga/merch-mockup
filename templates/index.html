@@ -124,7 +124,9 @@
   }
   .btn:hover, button[type="submit"]:hover { background: #333; }
 
-  button[type="submit"] { margin-top: 24px; }
+  .form-actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; }
+  .btn-clear { background: var(--muted); }
+  .btn-clear:hover { background: #5c5c5c; }
 
   .results-grid {
     display: grid;
@@ -170,11 +172,13 @@
   <div class="card">
     <form method="post" action="{{ url_for('generate') }}" id="generate-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="photo_pathname" id="photo_pathname">
+      <input type="hidden" name="photo_pathname" id="photo_pathname" value="{{ form.photo_pathname or '' }}">
 
       <label for="photo">Photograph</label>
-      <input type="file" id="photo" accept="image/jpeg,image/png,image/webp" required>
-      <p class="hint" id="upload-status"></p>
+      <input type="file" id="photo" accept="image/jpeg,image/png,image/webp">
+      <p class="hint" id="upload-status">
+        {%- if form.photo_pathname %}Reusing your last uploaded photo — choose a new file to replace it.{% endif -%}
+      </p>
 
       <label for="top_text">Top text <span class="hint">(optional)</span></label>
       <input type="text" id="top_text" name="top_text" placeholder="e.g. Fiery hot ant"
@@ -208,7 +212,10 @@
         {% endfor %}
       </select>
 
-      <button type="submit" id="submit-btn">Generate</button>
+      <div class="form-actions">
+        <button type="submit" id="submit-btn">Generate</button>
+        <a class="btn btn-clear" href="{{ url_for('index') }}">Clear</a>
+      </div>
     </form>
   </div>
 

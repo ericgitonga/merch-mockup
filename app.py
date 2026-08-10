@@ -301,7 +301,7 @@ def generate():
     sticky_form = {
         "top_text": top_text, "bottom_text": bottom_text,
         "filename": filename, "text_colour": text_colour,
-        "shirt_colour": shirt_colour,
+        "shirt_colour": shirt_colour, "photo_pathname": photo_pathname,
     }
 
     def _bounce(message):
@@ -383,6 +383,12 @@ def generate():
         "tiff_download_url": tiff_blob["downloadUrl"],
         "png_download_url": png_blob["downloadUrl"],
         "mockup_download_url": mockup_blob["downloadUrl"],
+        # Sticky form fields — /result re-renders these so the form stays
+        # populated after generating (issue #25) instead of the user having
+        # to retype everything for the next colour/text tweak.
+        "top_text": top_text, "bottom_text": bottom_text,
+        "filename": filename, "text_colour": text_colour,
+        "shirt_colour": shirt_colour, "photo_pathname": photo_pathname,
     }
     storage.put_blob(f"{prefix}/meta.json", json.dumps(meta).encode(), "application/json")
 
@@ -400,11 +406,17 @@ def result(token):
         return redirect(url_for("index"))
 
     meta = json.loads(meta_bytes)
+    form = {
+        key: meta.get(key, "") for key in (
+            "top_text", "bottom_text", "filename",
+            "text_colour", "shirt_colour", "photo_pathname",
+        )
+    }
     return render_template(
         "index.html",
         result=meta, token=token,
         text_colours=TEXT_COLOURS, shirt_colours=SHIRT_COLOURS,
-        form={},
+        form=form,
     )
 
 
