@@ -6,6 +6,11 @@ side left to path-traverse. What remains Flask-side is /generate's own
 defense-in-depth check on `photo_pathname` (in case a tampered request ever
 skips the browser's own upload flow) and /result/<token>'s handling of a
 token whose Blob metadata was never written (or was cleaned up).
+
+The missing-bottom-text/filename case is now caught client-side before any
+request is sent (see static/upload.js's missingRequirements()) — /generate's
+own check behind it is unchanged and remains the authoritative one for a
+tampered/JS-less request.
 """
 
 from _common import NOT_A_PHOTO, browser_page, submit_generate_form
@@ -14,11 +19,11 @@ BOGUS_TOKEN = "0" * 32       # well-formed (32 hex chars) but never issued
 MALFORMED_TOKEN = "not-a-token"
 
 
-def test_missing_name_shows_flash_error():
+def test_missing_name_blocked_client_side():
     with browser_page() as page:
         submit_generate_form(page, bottom_text="", filename="")
         assert "/result/" not in page.url
-        assert "Please enter a bottom text or fill in" in page.content()
+        assert "a bottom text" in page.locator("#client-error").inner_text()
 
 
 def test_disallowed_file_extension_rejected_client_side():
@@ -32,10 +37,9 @@ def test_tampered_photo_pathname_rejected_server_side():
     """Defense in depth: /generate itself validates photo_pathname's shape,
     independent of whatever the browser's own upload JS would ever send.
 
-    Still has to pick a file — the file input's `required` attribute
-    silently blocks even a programmatic requestSubmit() otherwise — but
-    setting photo_pathname directly beforehand means our own upload JS sees
-    it's already "uploaded" and never touches the file's actual content.
+    Picks a file so the client-side "missing photograph" check passes, then
+    overwrites photo_pathname directly — our own upload JS sees it's already
+    "uploaded" and never touches the file's actual content.
     """
     with browser_page() as page:
         page.goto("/")
@@ -61,7 +65,7 @@ def test_unknown_result_token_redirects_home():
 
 
 TESTS = [
-    test_missing_name_shows_flash_error,
+    test_missing_name_blocked_client_side,
     test_disallowed_file_extension_rejected_client_side,
     test_tampered_photo_pathname_rejected_server_side,
     test_unknown_result_token_redirects_home,

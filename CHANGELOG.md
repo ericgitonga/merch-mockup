@@ -6,6 +6,23 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.6.0] - 2026-08-10
+### Added
+- The generate form now stays populated after a generation instead of
+  resetting: `/result/<token>` re-renders the submitted text, colours, and
+  the already-uploaded photo's Blob pathname (round-tripped through
+  `meta.json`), so cycling through text/shirt colours no longer means
+  retyping everything or re-uploading the photo. A new "Clear" button
+  (links back to `/`, which has always rendered a blank form) is the
+  explicit way to reset. Picking a new photo file still forces a fresh
+  upload rather than silently reusing the old one. (closes #25)
+- Hitting Generate with no photo and no bottom text/filename (e.g. right
+  after Clear, or on a fresh page load) now shows an immediate, clearly
+  visible red prompt naming what's missing, instead of either a quiet grey
+  hint (photo) or nothing until a full server round-trip (name).
+
+tag: `v0.6.0`
+
 ## [0.5.1] - 2026-08-07
 ### Fixed
 - Standardised remaining American spellings to British: "centered" ->
