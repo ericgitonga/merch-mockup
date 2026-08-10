@@ -6,6 +6,15 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.6.1] - 2026-08-10
+### Changed
+- Renamed the app from "Insect Design Generator" to "Apparel Design Generator"
+  throughout — page `<title>`, `<h1>` heading, footer, and the `app.py` module
+  docstring — since the app generates apparel mockups generally, not just
+  insect designs. (closes #28)
+
+tag: `v0.6.1`
+
 ## [0.6.0] - 2026-08-10
 ### Added
 - The generate form now stays populated after a generation instead of
