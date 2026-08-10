@@ -1,0 +1,32 @@
+name: PR Checklist
+
+# Enforces two ONBOARDING.md conventions that have silently slipped before:
+# every change gets an issue, and a manual-verification checkbox left
+# unticked doesn't mean it was actually done. See issue #31.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  checklist:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require an issue reference
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if ! echo "$BODY" | grep -qiE '(close[sd]?|fix(es|ed)?|resolve[sd]?) #[0-9]+'; then
+            echo "::error::PR body must reference an issue it closes (e.g. 'Closes #123') — every change gets an issue, per ONBOARDING.md."
+            exit 1
+          fi
+
+      - name: Require all checklist items ticked
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if echo "$BODY" | grep -qE '^[[:space:]]*-[[:space:]]*\[ \]'; then
+            echo "::error::PR has unticked checklist items (e.g. a manual Preview check) — tick them before merging so the record reflects what actually happened."
+            exit 1
+          fi

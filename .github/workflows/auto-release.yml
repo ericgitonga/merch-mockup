@@ -1,0 +1,52 @@
+name: Auto Tag & Release
+
+# A version bump merged to main is not "done" until the matching git tag and
+# GitHub Release exist — that step has been forgotten twice (v0.6.0 here,
+# v0.5.0/v0.6.0 in en-mascaradores). This automates it away instead of relying
+# on remembering a manual last step. See issue #31.
+
+on:
+  push:
+    branches: [main]
+    paths: [VERSION]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag and release if this VERSION isn't tagged yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION=$(tr -d '[:space:]' < VERSION)
+          TAG="v$VERSION"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists, nothing to do."
+            exit 0
+          fi
+
+          python3 - "$VERSION" > release_notes.md <<'PY'
+          import re, sys
+          version = sys.argv[1]
+          text = open("CHANGELOG.md").read()
+          m = re.search(
+              rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=\n## \[|\Z)",
+              text, re.S | re.M,
+          )
+          notes = m.group(1).strip() if m else ""
+          notes = re.sub(r"\n?tag: `[^`]*`\s*$", "", notes).strip()
+          print(notes)
+          PY
+
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" --title "$TAG" --notes-file release_notes.md
