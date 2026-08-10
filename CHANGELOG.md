@@ -16,6 +16,10 @@ user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
   (links back to `/`, which has always rendered a blank form) is the
   explicit way to reset. Picking a new photo file still forces a fresh
   upload rather than silently reusing the old one. (closes #25)
+- Hitting Generate with no photo and no bottom text/filename (e.g. right
+  after Clear, or on a fresh page load) now shows an immediate, clearly
+  visible red prompt naming what's missing, instead of either a quiet grey
+  hint (photo) or nothing until a full server round-trip (name).
 
 tag: `v0.6.0`
 

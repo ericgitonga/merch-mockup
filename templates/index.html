@@ -212,6 +212,8 @@
         {% endfor %}
       </select>
 
+      <div class="flash" id="client-error" hidden></div>
+
       <div class="form-actions">
         <button type="submit" id="submit-btn">Generate</button>
         <a class="btn btn-clear" href="{{ url_for('index') }}">Clear</a>

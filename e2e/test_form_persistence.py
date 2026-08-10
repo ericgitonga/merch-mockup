@@ -64,10 +64,31 @@ def test_clear_resets_the_form():
         assert page.locator("input[name='text_colour'][value='White']").is_checked()
 
 
+def test_clear_then_generate_prompts_for_missing_photo_and_name():
+    with browser_page() as page:
+        submit_generate_form(
+            page, top_text="Fiery hot ant", bottom_text="Flagrant",
+            text_colour="Red",
+        )
+        assert result_token(page)
+
+        page.click("text=Clear")
+        page.wait_for_load_state("networkidle")
+
+        page.click("button[type=submit]")
+        error = page.locator("#client-error")
+        assert error.is_visible()
+        message = error.inner_text()
+        assert "a photograph" in message
+        assert "a bottom text" in message
+        assert "/result/" not in page.url
+
+
 TESTS = [
     test_fields_and_photo_persist_after_generate,
     test_regenerate_with_new_colour_reuses_photo_without_reselecting,
     test_clear_resets_the_form,
+    test_clear_then_generate_prompts_for_missing_photo_and_name,
 ]
 
 if __name__ == "__main__":
