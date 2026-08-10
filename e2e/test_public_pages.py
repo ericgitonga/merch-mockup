@@ -7,7 +7,7 @@ def test_index_loads():
     with browser_page() as page:
         resp = page.goto("/")
         assert resp.status == 200
-        assert page.locator("h1", has_text="Insect Design Generator").is_visible()
+        assert page.locator("h1", has_text="Apparel Design Generator").is_visible()
         assert page.locator("#photo").is_visible()
 
 

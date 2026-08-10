@@ -1,5 +1,5 @@
 """
-Flask app for the Insect Design Generator.
+Flask app for the Apparel Design Generator.
 
 Upload a photo, add optional top/bottom text labels, pick a text colour and
 a t-shirt colour, and get back a print-ready TIFF (black background), a
