@@ -6,6 +6,16 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.6.2] - 2026-08-10
+### Fixed
+- Excluded `/_vercel/*` from the catch-all rewrite in `vercel.json` so Vercel's
+  platform-injected Web Analytics script (`/_vercel/insights/script.js`) is no
+  longer swallowed by the Flask app's catch-all route and returned as a 404
+  HTML page, which the browser was blocking as a MIME mismatch under
+  `nosniff`. (closes #35)
+
+tag: `v0.6.2`
+
 ## [0.6.1] - 2026-08-10
 ### Changed
 - Renamed the app from "Insect Design Generator" to "Apparel Design Generator"
