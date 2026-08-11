@@ -55,6 +55,20 @@
     return missing;
   }
 
+  // Best-effort: if a result is closed/navigated away from without being
+  // downloaded, tell the server to reclaim its Blob storage rather than
+  // waiting on the daily cleanup cron. A plain <a> download doesn't unload
+  // the page, so this doesn't fire on the download click itself; if it
+  // fires anyway, the abandon route safely finds nothing left to delete.
+  // `pagehide` is used over `beforeunload`, which is unreliable
+  // (especially on mobile) and blocks the back/forward cache.
+  const downloadsCard = document.querySelector(".downloads-card[data-abandon-url]");
+  if (downloadsCard) {
+    window.addEventListener("pagehide", function () {
+      navigator.sendBeacon(downloadsCard.dataset.abandonUrl);
+    });
+  }
+
   form.addEventListener("submit", function (event) {
     const missing = missingRequirements();
     if (missing.length) {
