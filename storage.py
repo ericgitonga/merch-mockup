@@ -77,3 +77,17 @@ def get_blob_bytes(url, timeout=30):
         return None
     resp.raise_for_status()
     return resp.content
+
+
+def delete_blobs(urls, timeout=30):
+    """Delete one or more blobs by their `url`. Empirically verified the
+    same host used for `put_blob` also serves POST /delete (JSON {urls})."""
+    if not urls:
+        return
+    resp = requests.post(
+        f"{BLOB_API_BASE}/delete",
+        json={"urls": urls},
+        headers={"authorization": f"Bearer {_token()}"},
+        timeout=timeout,
+    )
+    resp.raise_for_status()

@@ -233,7 +233,7 @@
     </div>
   </div>
 
-  <div class="card downloads-card">
+  <div class="card downloads-card" data-abandon-url="{{ url_for('abandon', token=token) }}">
     <a class="btn" href="{{ url_for('download', token=token) }}">Download design</a>
   </div>
   {% endif %}
