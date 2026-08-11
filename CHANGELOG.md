@@ -6,6 +6,18 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.6.4] - 2026-08-11
+### Fixed
+- `auto-release.yml`'s `git tag` step failed on every run with `Committer
+  identity unknown` — the checkout step never configured a git identity.
+  Confirmed failing on both the v0.6.2 and v0.6.3 merges, silently defeating
+  the whole point of automating this (#31). Added a `git config user.name`/
+  `user.email` step before the tag. Also updated `ONBOARDING.md`, which
+  still only documented the manual tag+release steps despite this
+  automation existing since #31/PR #32. (closes #39)
+
+tag: `v0.6.4`
+
 ## [0.6.3] - 2026-08-10
 ### Fixed
 - The real-upload e2e failures blamed on a Vercel platform CORS outage (#34)
