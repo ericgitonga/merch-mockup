@@ -411,20 +411,33 @@ def generate():
     return redirect(url_for("result", token=token))
 
 
-def _cleanup_result(token, slug):
-    """Delete a result's blobs (tiff/png/mockup/preview/meta) — called once
-    the design has been downloaded, or once the browser tells us the result
-    page is being abandoned unread. Safe to call more than once for the
-    same token: a second call just finds nothing left to delete."""
+def _cleanup_result(token, meta):
+    """Delete a result's blobs (tiff/png/mockup/preview/meta) plus its source
+    photo upload — called once the design has been downloaded, or once the
+    browser tells us the result page is being abandoned unread. Safe to call
+    more than once for the same token: a second call just finds nothing left
+    to delete.
+
+    This deliberately also removes `uploads/<photo_pathname>`, even though
+    it's the same blob issue #25's "regenerate with a different colour"
+    sticky-form feature reuses across multiple /generate calls — once a
+    result has been downloaded or abandoned, that continuity is given up in
+    exchange for not leaving the source photo orphaned until the next daily
+    cron sweep (see issue #43)."""
+    slug = meta["slug"]
     prefix = f"results/{token}"
+    urls = [
+        storage.blob_url(f"{prefix}/{slug}.tiff"),
+        storage.blob_url(f"{prefix}/{slug}.png"),
+        storage.blob_url(f"{prefix}/{slug}_mockup.jpg"),
+        storage.blob_url(f"{prefix}/preview.jpg"),
+        storage.blob_url(f"{prefix}/meta.json"),
+    ]
+    photo_pathname = meta.get("photo_pathname")
+    if photo_pathname:
+        urls.append(storage.blob_url(photo_pathname))
     try:
-        storage.delete_blobs([
-            storage.blob_url(f"{prefix}/{slug}.tiff"),
-            storage.blob_url(f"{prefix}/{slug}.png"),
-            storage.blob_url(f"{prefix}/{slug}_mockup.jpg"),
-            storage.blob_url(f"{prefix}/preview.jpg"),
-            storage.blob_url(f"{prefix}/meta.json"),
-        ])
+        storage.delete_blobs(urls)
     except Exception:
         # Not fatal for the caller — the daily cleanup cron still catches
         # it as a fallback.
@@ -485,7 +498,7 @@ def download(token):
     # have no further purpose. Clearing them immediately, rather than
     # waiting on the daily cleanup cron, keeps Blob storage from filling up
     # between cron runs (see issue #37).
-    _cleanup_result(token, slug)
+    _cleanup_result(token, meta)
 
     return Response(
         _build_zip(fetched),
@@ -506,7 +519,7 @@ def abandon(token):
 
     meta_bytes = storage.get_blob_bytes(storage.blob_url(f"results/{token}/meta.json"))
     if meta_bytes is not None:
-        _cleanup_result(token, json.loads(meta_bytes)["slug"])
+        _cleanup_result(token, json.loads(meta_bytes))
 
     return "", 204
 

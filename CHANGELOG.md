@@ -6,6 +6,21 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.6.5] - 2026-08-11
+### Added
+- `/download/<token>` and `/result/<token>/abandon` now also delete the
+  source photo (`uploads/<photo_pathname>`) alongside the result set — same
+  two triggers `results/*` already used, closing the gap where uploads were
+  only ever caught by the 24h cron. Accepts that "regenerate a design with a
+  different colour" after a download will need a fresh photo upload.
+- `.github/workflows/e2e.yml`'s `e2e` job now wipes `uploads/` and
+  `results/` from the Blob store after the suite finishes, pass or fail —
+  the store is test/dev-only right now, so a blanket wipe after each run
+  keeps it from accumulating between the once-daily cleanup cron sweeps.
+  (closes #43)
+
+tag: `v0.6.5`
+
 ## [0.6.4] - 2026-08-11
 ### Fixed
 - `auto-release.yml`'s `git tag` step failed on every run with `Committer
