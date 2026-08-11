@@ -411,19 +411,20 @@ def generate():
     return redirect(url_for("result", token=token))
 
 
-def _cleanup_result(token, meta):
-    """Delete a result's blobs (tiff/png/mockup/preview/meta) plus its source
-    photo upload — called once the design has been downloaded, or once the
-    browser tells us the result page is being abandoned unread. Safe to call
-    more than once for the same token: a second call just finds nothing left
-    to delete.
+def _cleanup_result(token, meta, delete_photo=False):
+    """Delete a result's blobs (tiff/png/mockup/preview/meta) — called once
+    the design has been downloaded, or once the browser tells us the result
+    page is being abandoned unread. Safe to call more than once for the
+    same token: a second call just finds nothing left to delete.
 
-    This deliberately also removes `uploads/<photo_pathname>`, even though
-    it's the same blob issue #25's "regenerate with a different colour"
-    sticky-form feature reuses across multiple /generate calls — once a
-    result has been downloaded or abandoned, that continuity is given up in
-    exchange for not leaving the source photo orphaned until the next daily
-    cron sweep (see issue #43)."""
+    `delete_photo=True` additionally removes `uploads/<photo_pathname>`.
+    Only the abandon path passes this — issue #25's "regenerate with a
+    different colour" sticky-form feature reuses the same uploaded photo
+    across multiple /generate calls, so a *downloaded* result's photo is
+    deliberately left alone in case the user wants to try another colour
+    next (the daily cron still catches it eventually). An abandoned result
+    has no such follow-up to preserve, so its photo is cleaned up right
+    away instead of waiting on that cron (see issue #43)."""
     slug = meta["slug"]
     prefix = f"results/{token}"
     urls = [
@@ -434,7 +435,7 @@ def _cleanup_result(token, meta):
         storage.blob_url(f"{prefix}/meta.json"),
     ]
     photo_pathname = meta.get("photo_pathname")
-    if photo_pathname:
+    if delete_photo and photo_pathname:
         urls.append(storage.blob_url(photo_pathname))
     try:
         storage.delete_blobs(urls)
@@ -519,7 +520,7 @@ def abandon(token):
 
     meta_bytes = storage.get_blob_bytes(storage.blob_url(f"results/{token}/meta.json"))
     if meta_bytes is not None:
-        _cleanup_result(token, json.loads(meta_bytes))
+        _cleanup_result(token, json.loads(meta_bytes), delete_photo=True)
 
     return "", 204
 

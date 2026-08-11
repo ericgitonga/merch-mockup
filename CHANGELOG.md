@@ -8,11 +8,13 @@ user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
 ## [0.6.5] - 2026-08-11
 ### Added
-- `/download/<token>` and `/result/<token>/abandon` now also delete the
-  source photo (`uploads/<photo_pathname>`) alongside the result set — same
-  two triggers `results/*` already used, closing the gap where uploads were
-  only ever caught by the 24h cron. Accepts that "regenerate a design with a
-  different colour" after a download will need a fresh photo upload.
+- `/result/<token>/abandon` now also deletes the source photo
+  (`uploads/<photo_pathname>`) alongside the result set, closing the gap
+  where an abandoned result's upload was only ever caught by the 24h cron.
+  `/download/<token>` deliberately does *not* delete the photo — it's kept
+  alive so "regenerate with a different colour" (issue #25) still works
+  after a download without forcing a re-upload; a first design tried
+  deleting it on download too, but that broke exactly that flow.
 - `.github/workflows/e2e.yml`'s `e2e` job now wipes `uploads/` and
   `results/` from the Blob store after the suite finishes, pass or fail —
   the store is test/dev-only right now, so a blanket wipe after each run
