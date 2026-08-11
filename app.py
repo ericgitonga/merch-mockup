@@ -411,6 +411,26 @@ def generate():
     return redirect(url_for("result", token=token))
 
 
+def _cleanup_result(token, slug):
+    """Delete a result's blobs (tiff/png/mockup/preview/meta) — called once
+    the design has been downloaded, or once the browser tells us the result
+    page is being abandoned unread. Safe to call more than once for the
+    same token: a second call just finds nothing left to delete."""
+    prefix = f"results/{token}"
+    try:
+        storage.delete_blobs([
+            storage.blob_url(f"{prefix}/{slug}.tiff"),
+            storage.blob_url(f"{prefix}/{slug}.png"),
+            storage.blob_url(f"{prefix}/{slug}_mockup.jpg"),
+            storage.blob_url(f"{prefix}/preview.jpg"),
+            storage.blob_url(f"{prefix}/meta.json"),
+        ])
+    except Exception:
+        # Not fatal for the caller — the daily cleanup cron still catches
+        # it as a fallback.
+        app.logger.warning("Failed to clean up %s", prefix, exc_info=True)
+
+
 @app.route("/result/<token>")
 def result(token):
     if not TOKEN_RE.match(token):
@@ -461,11 +481,34 @@ def download(token):
             abort(404)
         fetched.append((arcname, data))
 
+    # The design has been handed to the user as a zip — the result blobs
+    # have no further purpose. Clearing them immediately, rather than
+    # waiting on the daily cleanup cron, keeps Blob storage from filling up
+    # between cron runs (see issue #37).
+    _cleanup_result(token, slug)
+
     return Response(
         _build_zip(fetched),
         mimetype="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{slug}_design.zip"'},
     )
+
+
+@app.route("/result/<token>/abandon", methods=["POST"])
+@csrf.exempt
+def abandon(token):
+    """Fired via `navigator.sendBeacon` when a result page is closed or
+    navigated away from without downloading (see static/upload.js). Not
+    authenticated beyond the token itself — same trust boundary as
+    /download/<token>, which can already delete these blobs outright."""
+    if not TOKEN_RE.match(token):
+        return "", 404
+
+    meta_bytes = storage.get_blob_bytes(storage.blob_url(f"results/{token}/meta.json"))
+    if meta_bytes is not None:
+        _cleanup_result(token, json.loads(meta_bytes)["slug"])
+
+    return "", 204
 
 
 @app.route("/_health")

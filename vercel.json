@@ -30,7 +30,7 @@
       }
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!_vercel/).*)",
       "destination": {
         "type": "service",
         "service": "merch-mockup"

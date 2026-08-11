@@ -6,6 +6,34 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.6.3] - 2026-08-10
+### Fixed
+- The real-upload e2e failures blamed on a Vercel platform CORS outage (#34)
+  were actually the Blob store hitting egm2's Hobby-plan 1GB storage quota —
+  confirmed by replaying the failing PUT server-side and getting back
+  `Storage quota exceeded for Hobby plan (1GB maximum)` instead of the
+  earlier no-response CORS symptom. Store manually emptied to unblock PR #33.
+### Added
+- `/download/<token>` now deletes its own `results/<token>/*` blobs
+  (tiff/png/mockup/preview/meta) immediately after serving the zip, instead
+  of waiting on the once-daily cleanup cron.
+- `/result/<token>` sends a `navigator.sendBeacon` on `pagehide` to a new
+  `POST /result/<token>/abandon` route, so a result page closed or
+  navigated away from without downloading is cleaned up too, rather than
+  lingering for up to 24h. (closes #37)
+
+tag: `v0.6.3`
+
+## [0.6.2] - 2026-08-10
+### Fixed
+- Excluded `/_vercel/*` from the catch-all rewrite in `vercel.json` so Vercel's
+  platform-injected Web Analytics script (`/_vercel/insights/script.js`) is no
+  longer swallowed by the Flask app's catch-all route and returned as a 404
+  HTML page, which the browser was blocking as a MIME mismatch under
+  `nosniff`. (closes #35)
+
+tag: `v0.6.2`
+
 ## [0.6.1] - 2026-08-10
 ### Changed
 - Renamed the app from "Insect Design Generator" to "Apparel Design Generator"
