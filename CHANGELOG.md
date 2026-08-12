@@ -6,6 +6,22 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.6.6] - 2026-08-12
+### Changed
+- The Vercel Firewall rule rate-limiting `/generate` and `/api/blob-upload`
+  (30 req/60s per IP) had been running in log-only observe mode since it
+  was added and was never tightened to actually enforce — flipped its
+  exceed-action from `log` to `deny` (pure Vercel Firewall config, no code
+  change; done directly against production given weeks of observe-mode
+  traffic data already backing it as safe).
+- Shortened `api/blob-upload.ts`'s presigned-token TTL from 15 minutes to
+  3 minutes. Even with the firewall rule enforcing, a 15-minute token
+  window let an attacker mint tokens at just under the rate limit and then
+  burst-PUT them concurrently straight to Blob storage — outside the
+  path-scoped firewall rule entirely. (closes #46)
+
+tag: `v0.6.6`
+
 ## [0.6.5] - 2026-08-11
 ### Added
 - `/result/<token>/abandon` now also deletes the source photo
