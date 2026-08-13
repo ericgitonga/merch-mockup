@@ -20,7 +20,9 @@ import { issueSignedToken, presignUrl } from '@vercel/blob';
 
 const ALLOWED_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // matches umoja-voices' upload cap
-const TOKEN_VALID_MS = 15 * 60 * 1000; // 15 minutes — long enough to pick and upload a photo
+const TOKEN_VALID_MS = 3 * 60 * 1000; // 3 minutes — long enough to pick and upload a photo, short
+                                       // enough that tokens can't be stockpiled and burst-used
+                                       // to bypass /api/blob-upload's own rate limit (issue #46)
 
 function extensionFor(contentType: string): string {
   switch (contentType) {
