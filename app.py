@@ -74,6 +74,24 @@ limiter = Limiter(
     default_limits=["200 per day", "50 per hour"],
 )
 
+# ── Decompression-bomb guard ────────────────────────────────────────────────
+# The app's own design canvas is only 2400×2900 (~7MP, see W/H below), but a
+# legitimate *source* photo before crop/resize is routinely much bigger than
+# that — modern phone and camera photos commonly run 12-48MP — so capping
+# MAX_IMAGE_PIXELS down to the canvas size itself would reject ordinary
+# uploads. 40MP comfortably covers realistic photography while sitting well
+# inside Pillow's default warn/hard-fail lines (~89MP / ~179MP), meaningfully
+# shrinking the worst-case decode cost of a single unauthenticated request.
+#
+# That alone doesn't close the gap on its own, though: Pillow only *warns*
+# (DecompressionBombWarning) between MAX_IMAGE_PIXELS and 2x MAX_IMAGE_PIXELS,
+# and only hard-fails (DecompressionBombError) above that 2x line — nothing
+# escalates the warning band to a rejection. _crop_photo() below promotes
+# that warning to an error for the same reason, so a hostile image anywhere
+# above MAX_IMAGE_PIXELS is rejected outright rather than silently decoded
+# and composited multiple times per request (issue #48).
+Image.MAX_IMAGE_PIXELS = 40_000_000
+
 W, H = 2400, 2900   # design canvas
 
 TEXT_COLOURS = {
@@ -168,7 +186,13 @@ def _load_fonts():
 
 
 def _crop_photo(path, pw):
-    img = Image.open(path).convert("RGB")
+    # Escalate Pillow's decompression-bomb *warning* (the band between
+    # MAX_IMAGE_PIXELS and 2x MAX_IMAGE_PIXELS) to a hard error, scoped to
+    # just this decode — see the MAX_IMAGE_PIXELS comment above for why
+    # both halves of this guard are needed together.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", Image.DecompressionBombWarning)
+        img = Image.open(path).convert("RGB")
     aw, ah = img.size
     side   = min(aw, ah)
     img    = img.crop(((aw - side)//2, (ah - side)//2,
@@ -381,7 +405,8 @@ def generate():
             preview.paste(png, mask=png.split()[3])
             preview_buf = io.BytesIO()
             preview.save(preview_buf, format="JPEG", quality=90)
-    except (UnidentifiedImageError, Image.DecompressionBombError, OSError):
+    except (UnidentifiedImageError, Image.DecompressionBombError,
+             Image.DecompressionBombWarning, OSError):
         return _bounce("That photograph couldn't be processed — please try a different file.")
 
     token  = uuid.uuid4().hex

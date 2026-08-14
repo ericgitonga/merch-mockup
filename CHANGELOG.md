@@ -6,6 +6,25 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.6.7] - 2026-08-14
+### Changed
+- Lowered `Image.MAX_IMAGE_PIXELS` from Pillow's default (~89MP) to 40MP —
+  generous enough for real phone/camera photos before crop/resize, but
+  well below the default warn/hard-fail lines, shrinking the worst-case
+  decode cost of a single unauthenticated `/generate` request.
+- Promoted Pillow's `DecompressionBombWarning` to a hard error, scoped
+  around the `Image.open()` call in `_crop_photo`. Pillow only warns (never
+  raises) for images between `MAX_IMAGE_PIXELS` and 2x `MAX_IMAGE_PIXELS` —
+  only hard-failing above that 2x line — so a large-but-not-*that*-large
+  hostile image previously decoded successfully with nothing rejecting it.
+  Routed through the same `_bounce()` error path as the existing
+  `DecompressionBombError`/`UnidentifiedImageError` handling. (closes #48)
+- Bumped `undici` (transitive via `@vercel/blob`) from 6.27.0 to 6.28.0 via
+  `npm audit fix`, resolving a moderate response-desync/CRLF-injection
+  advisory. (closes #48)
+
+tag: `v0.6.7`
+
 ## [0.6.6] - 2026-08-12
 ### Changed
 - The Vercel Firewall rule rate-limiting `/generate` and `/api/blob-upload`
