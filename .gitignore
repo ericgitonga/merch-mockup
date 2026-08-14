@@ -18,6 +18,7 @@ ONBOARDING.md
 __pycache__/
 *.pyc
 .venv/
+node_modules/
 
 # OS
 .DS_Store
