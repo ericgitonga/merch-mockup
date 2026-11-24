@@ -1,30 +1,30 @@
-"""Thin wrapper around Vercel Blob's plain REST API (put/get/delete).
+"""Storage adapter for Vercel Blob with local disk fallback.
 
-This is the *stable*, documented part of Vercel Blob (unlike the
-client-upload token-minting protocol, which is only implemented inside the
-`@vercel/blob` Node package and isn't published as a versioned contract —
-see api/blob-upload.ts for that half). Verified empirically against the
-project's own Blob store:
-
-    PUT  https://blob.vercel-storage.com/<pathname>
-         headers: authorization: Bearer <token>, x-api-version: 7,
-                  x-content-type: <mime>, x-add-random-suffix: 0|1
-         -> 200 JSON {url, downloadUrl, pathname, contentType, contentDisposition}
-
-    GET  <the returned url>              -> raw bytes, inline disposition
-    GET  <the returned url>?download=1   -> raw bytes, attachment disposition
-
-No SDK needed for either direction — a blob's own `url` (captured at put
-time) is used for every later read, so nothing here hardcodes the store's
-public subdomain.
+In production on Vercel, wraps Vercel Blob's plain REST API (put/get/delete).
+In local offline development (when BLOB_READ_WRITE_TOKEN is unset or
+USE_LOCAL_STORAGE=1), transparently persists files to .local_storage/ and
+serves them via /local-blob/<path>.
 """
 
 import os
+from pathlib import Path
 
 import requests
 
+BASE_DIR = Path(__file__).parent
+LOCAL_STORAGE_DIR = Path(os.environ.get("LOCAL_STORAGE_DIR", BASE_DIR / ".local_storage"))
+
 BLOB_API_BASE = "https://blob.vercel-storage.com"
 BLOB_API_VERSION = "7"
+
+
+def is_local():
+    """Returns True if local disk storage should be used instead of Vercel Blob."""
+    if os.environ.get("USE_LOCAL_STORAGE") == "1":
+        return True
+    if os.environ.get("VERCEL") == "1":
+        return False
+    return not bool(os.environ.get("BLOB_READ_WRITE_TOKEN"))
 
 
 def _token():
@@ -35,26 +35,35 @@ def _token():
 
 
 def public_base_url():
-    """The store's public read subdomain, derived from BLOB_READ_WRITE_TOKEN.
-
-    Token shape is `vercel_blob_rw_<storeid>_<secret>`; the public host is
-    `https://<storeid, lowercased>.public.blob.vercel-storage.com` — verified
-    directly against this project's own store (a `put()` of `test/hello.txt`
-    returned a URL on exactly this host). Deriving it this way means a later,
-    separate request (e.g. GET /result/<token>) can construct a blob's URL
-    from its pathname alone, without needing the put-time response in hand.
-    """
+    """The store's public read subdomain, derived from BLOB_READ_WRITE_TOKEN
+    or local URL prefix."""
+    if is_local():
+        return "/local-blob"
     store_id = _token().split("_")[3]
     return f"https://{store_id.lower()}.public.blob.vercel-storage.com"
 
 
 def blob_url(pathname):
+    pathname = pathname.lstrip("/")
     return f"{public_base_url()}/{pathname}"
 
 
 def put_blob(pathname, data, content_type):
     """Upload bytes to Blob at a deterministic pathname. Returns the API's
     JSON response ({url, downloadUrl, pathname, contentType, ...})."""
+    pathname = pathname.lstrip("/")
+    if is_local():
+        dest = LOCAL_STORAGE_DIR / pathname
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(data)
+        url = f"/local-blob/{pathname}"
+        return {
+            "url": url,
+            "downloadUrl": f"{url}?download=1",
+            "pathname": pathname,
+            "contentType": content_type,
+        }
+
     resp = requests.put(
         f"{BLOB_API_BASE}/{pathname}",
         data=data,
@@ -72,6 +81,17 @@ def put_blob(pathname, data, content_type):
 
 def get_blob_bytes(url, timeout=30):
     """Fetch a blob's raw bytes. Returns None if not found (404)."""
+    if not url:
+        return None
+
+    if "/local-blob/" in url or url.startswith("/local-blob"):
+        idx = url.find("/local-blob/")
+        rel_path = url[idx + len("/local-blob/"):].split("?")[0]
+        dest = LOCAL_STORAGE_DIR / rel_path
+        if not dest.is_file():
+            return None
+        return dest.read_bytes()
+
     resp = requests.get(url, timeout=timeout)
     if resp.status_code == 404:
         return None
@@ -80,14 +100,28 @@ def get_blob_bytes(url, timeout=30):
 
 
 def delete_blobs(urls, timeout=30):
-    """Delete one or more blobs by their `url`. Empirically verified the
-    same host used for `put_blob` also serves POST /delete (JSON {urls})."""
+    """Delete one or more blobs by their `url`."""
     if not urls:
         return
-    resp = requests.post(
-        f"{BLOB_API_BASE}/delete",
-        json={"urls": urls},
-        headers={"authorization": f"Bearer {_token()}"},
-        timeout=timeout,
-    )
-    resp.raise_for_status()
+
+    remote_urls = []
+    for u in urls:
+        if not u:
+            continue
+        if "/local-blob/" in u or u.startswith("/local-blob"):
+            idx = u.find("/local-blob/")
+            rel_path = u[idx + len("/local-blob/"):].split("?")[0]
+            dest = LOCAL_STORAGE_DIR / rel_path
+            if dest.is_file():
+                dest.unlink(missing_ok=True)
+        else:
+            remote_urls.append(u)
+
+    if remote_urls:
+        resp = requests.post(
+            f"{BLOB_API_BASE}/delete",
+            json={"urls": remote_urls},
+            headers={"authorization": f"Bearer {_token()}"},
+            timeout=timeout,
+        )
+        resp.raise_for_status()

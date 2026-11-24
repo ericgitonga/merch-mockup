@@ -6,6 +6,22 @@ pre-1.0 (initial development) — the major version stays at `0` until a stable,
 production-ready release is declared. MINOR bumps cover new features and
 user-facing changes; PATCH bumps cover fixes, docs, and housekeeping.
 
+## [0.7.0] - 2026-11-24
+### Added
+- Local offline development mode: app runs out of the box with zero external
+  services or cloud tokens when `BLOB_READ_WRITE_TOKEN` is unset or `USE_LOCAL_STORAGE=1`. (closes #51)
+- Built-in local disk storage adapter in `storage.py` writing to and reading from
+  `.local_storage/`, with seamless path resolution for put/get/delete and download links. (Parent: #51, closes #52)
+- Local fallback routes in `app.py` for `/api/blob-upload` and `/api/local-upload/<photo_id>.<ext>`,
+  allowing `static/upload.js` to execute photo uploads locally without requiring Node.js or
+  `api/blob-upload.ts`. (Parent: #51, closes #53)
+- Route `/local-blob/<path:pathname>` in `app.py` to serve locally stored previews,
+  mockups, and direct download attachments. (Parent: #51, closes #53)
+- Comprehensive test suite in `tests/test_local_storage.py` covering local storage
+  primitives, upload token generation, PUT uploads, generation, and zip download packaging. (Parent: #51, closes #51)
+
+tag: `v0.7.0`
+
 ## [0.6.7] - 2026-08-14
 ### Changed
 - Lowered `Image.MAX_IMAGE_PIXELS` from Pillow's default (~89MP) to 40MP —

@@ -64,7 +64,7 @@ if not _secret:
         stacklevel=1,
     )
 app.config["SECRET_KEY"] = _secret
-app.config["MAX_CONTENT_LENGTH"] = 64 * 1024  # form fields + a blob URL, not the photo itself
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # allows photo upload in local dev mode
 
 csrf = CSRFProtect(app)
 
@@ -318,6 +318,88 @@ def _inject_app_version():
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────
+
+@app.route("/api/blob-upload", methods=["POST"])
+@csrf.exempt
+@limiter.limit("30 per minute")
+def api_blob_upload():
+    """Local-development fallback for api/blob-upload.ts.
+
+    On Vercel, requests to /api/blob-upload are intercepted by vercel.json
+    rewrites and routed directly to the api/blob-upload.ts Serverless Function.
+    In local development (running `python app.py`), this Flask route handles
+    minting the presigned upload endpoint so static/upload.js works without
+    any Node.js or Vercel CLI dependency.
+    """
+    body = request.get_json(silent=True) or {}
+    content_type = body.get("contentType", "image/jpeg")
+    ext_map = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+    }
+    if content_type not in ext_map:
+        return {"error": "Only JPEG, PNG, and WebP images are supported."}, 400
+
+    ext = ext_map[content_type]
+    photo_id = uuid.uuid4().hex
+    pathname = f"uploads/{photo_id}.{ext}"
+    presigned_url = url_for("api_local_upload", photo_id=photo_id, ext=ext)
+    return {
+        "presignedUrl": presigned_url,
+        "pathname": pathname,
+    }
+
+
+@app.route("/api/local-upload/<photo_id>.<ext>", methods=["PUT"])
+@csrf.exempt
+@limiter.limit("30 per minute")
+def api_local_upload(photo_id, ext):
+    """Local PUT target for direct photo uploads."""
+    if ext not in ["jpg", "png", "webp"]:
+        abort(400)
+    if not re.match(r"^[0-9a-f]{32}$", photo_id):
+        abort(400)
+
+    pathname = f"uploads/{photo_id}.{ext}"
+    content_type = request.headers.get("content-type", "application/octet-stream")
+    data = request.get_data()
+    if not data:
+        return {"error": "Empty upload"}, 400
+
+    storage.put_blob(pathname, data, content_type)
+    return "", 200
+
+
+@app.route("/local-blob/<path:pathname>")
+def local_blob(pathname):
+    """Serve locally stored blobs (previews, mockups, generated downloads)."""
+    data = storage.get_blob_bytes(f"/local-blob/{pathname}")
+    if data is None:
+        abort(404)
+
+    ext = Path(pathname).suffix.lower()
+    mimetypes = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".tiff": "image/tiff",
+        ".json": "application/json",
+    }
+    mimetype = mimetypes.get(ext, "application/octet-stream")
+    as_attachment = request.args.get("download") == "1"
+    filename = Path(pathname).name
+
+    return Response(
+        data,
+        mimetype=mimetype,
+        headers={
+            "Content-Disposition": f'{"attachment" if as_attachment else "inline"}; filename="{filename}"',
+            "Cache-Control": "public, max-age=3600",
+        },
+    )
+
 
 @app.route("/")
 def index():
