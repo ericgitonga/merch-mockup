@@ -19,6 +19,7 @@ __pycache__/
 *.pyc
 .venv/
 node_modules/
+.local_storage/
 
 # OS
 .DS_Store

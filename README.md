@@ -22,11 +22,9 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Opens on `http://127.0.0.1:5000`. Needs `BLOB_READ_WRITE_TOKEN` in the
-environment (pull it with `vercel env pull .env.local` once linked to the
-Vercel project) — the upload endpoint (`api/blob-upload.ts`) only runs on
-Vercel, so exercising the full upload flow locally means either deploying a
-Preview or standing up `vercel dev` yourself.
+Opens on `http://127.0.0.1:5000`. Runs fully offline out of the box with zero configuration — when `BLOB_READ_WRITE_TOKEN` is unset, the app uses a built-in local disk storage adapter (`.local_storage/`) and local upload endpoints, allowing the complete upload, generation, preview, and zip download flow to run without needing Vercel or cloud Blob access.
+
+To test against live Vercel Blob storage locally, pull `BLOB_READ_WRITE_TOKEN` via `vercel env pull .env.local`.
 
 ## Testing
 
